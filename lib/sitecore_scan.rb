@@ -1,4 +1,3 @@
-# coding: utf-8
 #
 # This file is part of SitecoreScan
 # https://github.com/bcoles/sitecore_scan
@@ -6,62 +5,67 @@
 
 require 'uri'
 require 'cgi'
+require 'logger'
 require 'net/http'
 require 'openssl'
 
 class SitecoreScan
-  VERSION = '0.0.1'.freeze
+  VERSION = '0.0.2'.freeze
+
+  def self.logger
+    @logger
+  end
+
+  def self.logger=(logger)
+    @logger = logger
+  end
+
+  def self.insecure
+    @insecure ||= false
+  end
+
+  def self.insecure=(insecure)
+    @insecure = insecure
+  end
 
   #
-  # Check if Sitecore
+  # Check if URL is running Sitecore using edit mode
   #
   # @param [String] URL
   #
   # @return [Boolean]
   #
-  def self.isSitecore(url)
+  def self.detectSitecore(url)
     url += '/' unless url.to_s.end_with? '/'
-    res = self.sendHttpRequest("#{url}?sc_mode=edit")
+    res = sendHttpRequest("#{url}?sc_mode=edit")
 
     return false unless res
-    return false unless res.code.to_i == 302
-    return false unless (res['location'].to_s.downcase.include?('sitecore/login') || res['set-cookies'].to_s.include?('sc_mode=edit'))
 
-    true
+    return true if res['sitecore-item']
+    return true if res['set-cookies'].to_s.include?('sc_mode=edit')
+    return true if res.code.to_i == 302 && (res['location'].to_s.downcase.include?('sitecore/login') || res['location'].to_s.downcase.include?('user=sitecore'))
+
+    false
   end
 
   #
-  # Get Sitecore version
+  # Retrieve Sitecore version from Login page
   #
   # @param [String] URL
   #
   # @return [String] Sitecore version
   #
-  def self.getVersion(url)
+  def self.getVersionFromLogin(url)
     url += '/' unless url.to_s.end_with? '/'
-    res = self.sendHttpRequest("#{url}sitecore/login")
+    res = sendHttpRequest("#{url}sitecore/login")
 
     return unless res
 
-    res.body.to_s.scan(%r{(Sitecore\.NET [\d\.]+ \(rev\. \d+\))}).flatten.first
-  end
+    version = res.body.to_s.scan(%r{(Sitecore\.NET [\d\.]+ \(rev\. \d+\))}).flatten.first
 
-  #
-  # Check if remote access to the SOAP API is allowed
-  #
-  # @param [String] URL
-  #
-  # @return [Boolean]
-  #
-  def self.remoteSoapApi(url)
-    url += '/' unless url.to_s.end_with? '/'
-    res = self.sendHttpRequest("#{url}sitecore/shell/WebService/Service.asmx")
+    return version if version
 
-    return false unless res
-    return false unless res.code.to_i == 200
-    return false unless res.body.to_s.include? 'Visual Sitecore Service Web Service'
-
-    true
+    res.body.to_s.scan(%r{<iframe src="https://sdn.sitecore.net/startpage.aspx\?[^"]+v=([\d\.]+)"}).flatten.first
   end
 
   #
@@ -82,7 +86,60 @@ class SitecoreScan
     true
   end
 
-  private
+  #
+  # Check if SOAP API is accessible
+  #
+  # @param [String] URL
+  #
+  # @return [Boolean]
+  #
+  def self.soapApi(url)
+    url += '/' unless url.to_s.end_with? '/'
+    res = sendHttpRequest("#{url}sitecore/shell/WebService/Service.asmx")
+
+    return false unless res
+    return false unless res.code.to_i == 200
+    return false unless res.body.to_s.include? 'Visual Sitecore Service Web Service'
+
+    true
+  end
+
+  #
+  # Check if Executive Insight Dashboard reporting is accessible (CVE-2021-42237)
+  # https://support.sitecore.com/kb?id=kb_article_view&sysparm_article=KB1000776
+  #
+  # @param [String] URL
+  #
+  # @return [Boolean]
+  #
+  def self.dashboardReporting(url)
+    url += '/' unless url.to_s.end_with? '/'
+    res = sendHttpRequest("#{url}sitecore/shell/ClientBin/Reporting/Report.ashx")
+
+    return false unless res
+    return false unless res.code.to_i == 200
+    return false unless res.body.to_s.include? 'Sitecore.Analytics.Reporting'
+
+    true
+  end
+
+  #
+  # Check if Telerik Web UI is accessible (CVE-2017-9248)
+  # https://support.sitecore.com/kb?id=kb_article_view&sysparm_article=KB0978654
+  #
+  # @param [String] URL
+  #
+  # @return [Boolean]
+  #
+  def self.telerikWebUi(url)
+    url += '/' unless url.to_s.end_with? '/'
+    res = sendHttpRequest("#{url}/Telerik.Web.UI.WebResource.axd")
+
+    return false unless res
+    return false unless res.code.to_i == 200
+
+    true
+  end
 
   #
   # Fetch URL
@@ -93,12 +150,12 @@ class SitecoreScan
   #
   def self.sendHttpRequest(url)
     target = URI.parse(url)
-    puts "* Fetching #{target}" if $VERBOSE
+    @logger.info("Fetching #{target}")
+
     http = Net::HTTP.new(target.host, target.port)
     if target.scheme.to_s.eql?('https')
       http.use_ssl = true
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-      #http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+      http.verify_mode = @insecure ? OpenSSL::SSL::VERIFY_NONE : OpenSSL::SSL::VERIFY_PEER
     end
     http.open_timeout = 20
     http.read_timeout = 20
@@ -114,11 +171,13 @@ class SitecoreScan
         res.body = gz.read
       end
     rescue Timeout::Error, Errno::ETIMEDOUT
-      puts "- Error: Timeout retrieving #{target}" if $VERBOSE
+      @logger.error("Could not retrieve URL #{target}: Timeout")
+      return nil
     rescue => e
-      puts "- Error: Could not retrieve URL #{target}\n#{e}" if $VERBOSE
+      @logger.error("Could not retrieve URL #{target}: #{e}")
+      return nil
     end
-    puts "+ Received reply (#{res.body.length} bytes)" if $VERBOSE
+    @logger.info("Received reply (#{res.body.length} bytes)")
     res
   end
 end

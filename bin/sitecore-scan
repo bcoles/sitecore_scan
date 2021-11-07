@@ -16,17 +16,17 @@ def banner
   \\___ \\| | __/ _ \\/ __/ _ \\| '__/ _ \\\\___ \\ / __/ _` | '_ \\ 
   ____) | | ||  __/ (_| (_) | | |  __/____) | (_| (_| | | | |
  |_____/|_|\\__\\___|\\___\\___/|_|  \\___|_____/ \\___\\__,_|_| |_|
-                                               version 0.0.1"
+                                               version 0.0.2"
   puts
-  puts '-'*60
+  puts '-' * 60
 end
 
 banner
 options = {}
-opts = OptionParser.new do |opts|
-  opts.banner = "Usage: sitecore-scan <url> [options]"
+opts = OptionParser.new do |o|
+  o.banner = "Usage: sitecore-scan [options]"
 
-  opts.on('-u URL', '--url URL', 'Sitecore URL to scan') do |v|
+  o.on('-u URL', '--url URL', 'Sitecore URL to scan') do |v|
     unless v.match(%r{\Ahttps?://})
       puts "- Invalid URL: #{v}"
       exit(1)
@@ -34,15 +34,19 @@ opts = OptionParser.new do |opts|
     options[:url] = v
   end
 
-  opts.on('-s', '--skip', 'Skip check for Sitecore') do
+  o.on('-s', '--skip', 'Skip check for Sitecore') do
     options[:skip] = true
   end
 
-  opts.on('-v', '--verbose', 'Enable verbose output') do
+  o.on('-i', '--insecure', 'Skip SSL/TLS validation') do
+    options[:insecure] = true
+  end
+
+  o.on('-v', '--verbose', 'Enable verbose output') do
     options[:verbose] = true
   end
 
-  opts.on('-h', '--help', 'Show this help') do 
+  o.on('-h', '--help', 'Show this help') do
     puts opts
     exit
   end
@@ -50,15 +54,20 @@ end
 
 opts.parse!
 
-$VERBOSE = true unless options[:verbose].nil?
-@check = true unless options[:skip]
-
 if options[:url].nil?
  puts opts
  exit(1)
 end
 
-def scan(url)
+def scan(url, check: true, insecure: false, verbose: false)
+  SitecoreScan.logger = ::Logger.new($stdout).tap do |log|
+    log.progname = 'sitecore-scan'
+    log.level = verbose ? ::Logger::INFO : ::Logger::WARN
+    log.datetime_format = '%Y-%m-%d %H:%M:%S '
+  end
+
+  SitecoreScan.insecure = insecure
+
   puts "Scan started at #{Time.now.getutc}"
   puts "URL: #{url}"
 
@@ -83,29 +92,42 @@ def scan(url)
   puts '-' * 60
 
   # Check if the URL is Sitecore
-  if @check
-    if SitecoreScan::isSitecore(url)
-      puts "+ Found Sitecore CMS"
-    else
-      puts "- Sitecore CMS not found"
+  if check
+    is_sitecore = SitecoreScan::detectSitecore(url)
+    unless is_sitecore
+      puts '- Sitecore not found'
       exit(1)
     end
+    puts '+ Found Sitecore'
   end
 
-  # Get Sitecore version
-  version = SitecoreScan::getVersion(url)
+  # Retrieve Sitecore version from Login page
+  version = SitecoreScan::getVersionFromLogin(url)
   puts "+ Version: #{version}" if version
 
-  # Glimpse debugging enabled
+  # Check if Glimpse debugging is enabled
   glimpse = SitecoreScan::glimpseDebugging(url)
   puts "+ Glimpse debugging is enabled" if glimpse
 
-  # SOAP API accessible
-  soap_api = SitecoreScan::remoteSoapApi(url)
-  puts "+ Remote SOAP API is available" if soap_api
+  # Check if SOAP API is accessible
+  soap_api = SitecoreScan::soapApi(url)
+  puts "+ SOAP API is available" if soap_api
+
+  # Check if Executive Insight Dashboard reporting is accessible
+  reporting = SitecoreScan::dashboardReporting(url)
+  puts "+ Executive Insight Dashboard reporting is available" if reporting
+
+  # Check if Telerik Web UI is accessible
+  telerik = SitecoreScan::telerikWebUi(url)
+  puts "+ Telerik Web Ui is available" if telerik
 
   puts "Scan finished at #{Time.now.getutc}"
   puts '-' * 60
 end
 
-scan(options[:url])
+scan(
+  options[:url],
+  insecure: options[:insecure],
+  check: !options[:skip],
+  verbose: options[:verbose]
+)
