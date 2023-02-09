@@ -1,13 +1,13 @@
 PATH
   remote: .
   specs:
-    sitecore_scan (0.0.2)
+    sitecore_scan (0.0.3)
       logger (~> 1.4)
 
 GEM
   remote: https://rubygems.org/
   specs:
-    logger (1.4.4)
+    logger (1.5.3)
 
 PLATFORMS
   ruby
@@ -16,4 +16,4 @@ DEPENDENCIES
   sitecore_scan!
 
 BUNDLED WITH
-   1.17.3
+   2.3.19

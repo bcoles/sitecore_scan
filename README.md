@@ -19,7 +19,7 @@ git clone https://github.com/bcoles/sitecore_scan
 cd sitecore_scan
 bundle install
 gem build sitecore_scan.gemspec
-gem install --local sitecore_scan-0.0.2.gem
+gem install --local sitecore_scan-0.0.3.gem
 ```
 
 ## Usage (command line)
@@ -36,7 +36,7 @@ Usage: sitecore-scan [options]
 
 ## Usage (ruby)
 
-```
+```ruby
 #!/usr/bin/env ruby
 require 'sitecore_scan'
 url = 'https://sitecore.example.local/'

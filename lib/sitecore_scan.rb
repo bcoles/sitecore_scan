@@ -8,9 +8,10 @@ require 'cgi'
 require 'logger'
 require 'net/http'
 require 'openssl'
+require 'stringio'
 
 class SitecoreScan
-  VERSION = '0.0.2'.freeze
+  VERSION = '0.0.3'.freeze
 
   def self.logger
     @logger
@@ -65,7 +66,11 @@ class SitecoreScan
 
     return version if version
 
-    res.body.to_s.scan(%r{<iframe src="https://sdn.sitecore.net/startpage.aspx\?[^"]+v=([\d\.]+)"}).flatten.first
+    version = res.body.to_s.scan(%r{<iframe src="https://sdn.sitecore.net/startpage.aspx\?[^"]+v=([\d.]+)"}).flatten.first
+
+    return version if version
+
+    nil
   end
 
   #
@@ -99,7 +104,7 @@ class SitecoreScan
 
     return false unless res
     return false unless res.code.to_i == 200
-    return false unless res.body.to_s.include? 'Visual Sitecore Service Web Service'
+    return false unless res.body.to_s.include?('Visual Sitecore Service Web Service')
 
     true
   end

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 bundle install
 gem build sitecore_scan.gemspec
-gem install --local sitecore_scan-0.0.2.gem
+gem install --local sitecore_scan-0.0.3.gem
