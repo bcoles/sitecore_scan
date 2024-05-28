@@ -11,7 +11,7 @@ require 'openssl'
 require 'stringio'
 
 class SitecoreScan
-  VERSION = '0.0.3'.freeze
+  VERSION = '0.0.4'.freeze
 
   def self.logger
     @logger
@@ -30,13 +30,27 @@ class SitecoreScan
   end
 
   #
-  # Check if URL is running Sitecore using edit mode
+  # Check if URL is running Sitecore
   #
   # @param [String] URL
   #
   # @return [Boolean]
   #
   def self.detectSitecore(url)
+    return true if detectSitecoreEditMode(url)
+    return true if detectSitecoreErrorRedirect(url)
+
+    false
+  end
+
+  #
+  # Check if URL is running Sitecore using edit mode
+  #
+  # @param [String] URL
+  #
+  # @return [Boolean]
+  #
+  def self.detectSitecoreEditMode(url)
     url += '/' unless url.to_s.end_with? '/'
     res = sendHttpRequest("#{url}?sc_mode=edit")
 
@@ -45,6 +59,25 @@ class SitecoreScan
     return true if res['sitecore-item']
     return true if res['set-cookies'].to_s.include?('sc_mode=edit')
     return true if res.code.to_i == 302 && (res['location'].to_s.downcase.include?('sitecore/login') || res['location'].to_s.downcase.include?('user=sitecore'))
+
+    false
+  end
+
+  #
+  # Check if URL is running Sitecore using error redirect
+  #
+  # @param [String] URL
+  #
+  # @return [Boolean]
+  #
+  def self.detectSitecoreErrorRedirect(url)
+    url += '/' unless url.to_s.end_with? '/'
+    res = sendHttpRequest("#{url}#{('a'..'z').to_a.shuffle[0,8].join}.aspx")
+
+    return false unless res
+
+    return true if res['sitecore-item']
+    return true if res.code.to_i == 302 && res['location'].to_s.downcase.include?('sitecore/service/notfound.aspx')
 
     false
   end
@@ -110,6 +143,28 @@ class SitecoreScan
   end
 
   #
+  # Check if MVC Device Simulator allows file disclosure (SC2023-001-568150)
+  # https://support.sitecore.com/kb?id=kb_article_view&sysparm_article=KB1002925
+  # https://blog.assetnote.io/2023/05/10/sitecore-round-two/
+  #
+  # @param [String] URL
+  #
+  # @return [Boolean]
+  #
+  def self.mvcDeviceSimulatorFileDisclosure(url)
+    url += '/' unless url.to_s.end_with? '/'
+    res = sendHttpRequest("#{url}api/sitecore/Sitecore.Mvc.DeviceSimulator.Controllers.SimulatorController,Sitecore.Mvc.DeviceSimulator.dll/Preview?previewPath=/App_Data/license.xml")
+
+    return false unless res
+    return false unless res.code.to_i == 200
+    return false unless res.body.to_s.include?('<?xml')
+    return false unless res.body.to_s.include?('sitecore')
+    return false unless res.body.to_s.include?('signedlicense')
+
+    true
+  end
+
+  #
   # Check if Executive Insight Dashboard reporting is accessible (CVE-2021-42237)
   # https://support.sitecore.com/kb?id=kb_article_view&sysparm_article=KB1000776
   #
@@ -123,7 +178,7 @@ class SitecoreScan
 
     return false unless res
     return false unless res.code.to_i == 200
-    return false unless res.body.to_s.include? 'Sitecore.Analytics.Reporting'
+    return false unless res.body.to_s.include?('Sitecore.Analytics.Reporting')
 
     true
   end

@@ -19,7 +19,7 @@ git clone https://github.com/bcoles/sitecore_scan
 cd sitecore_scan
 bundle install
 gem build sitecore_scan.gemspec
-gem install --local sitecore_scan-0.0.3.gem
+gem install --local sitecore_scan-0.0.4.gem
 ```
 
 ## Usage (command line)
@@ -40,11 +40,13 @@ Usage: sitecore-scan [options]
 #!/usr/bin/env ruby
 require 'sitecore_scan'
 url = 'https://sitecore.example.local/'
-SitecoreScan::detectSitecore(url)                  # Check if a URL is Sitecore using edit mode
-SitecoreScan::glimpseDebugging(url)                # Check if Glimpse debugging is enabled
-SitecoreScan::soapApi(url)                         # Check if SOAP API is accessible
-SitecoreScan::dashboardReporting(url)              # Check if Executive Insight Dashboard reporting is accessible
-SitecoreScan::telerikWebUi(url)                    # Check if Telerik Web UI is accessible
-SitecoreScan::getVersionFromLogin(url)             # Retrieve Sitecore version from Login page
+SitecoreScan::detectSitecore(url)                    # Check if a URL is Sitecore (using all methods)
+SitecoreScan::detectSitecoreEditMode(url)            # Check if a URL is Sitecore (detect edit mode)
+SitecoreScan::detectSitecoreErrorRedirect(url)       # Check if a URL is Sitecore (detect error redirect)
+SitecoreScan::glimpseDebugging(url)                  # Check if Glimpse debugging is enabled
+SitecoreScan::soapApi(url)                           # Check if SOAP API is accessible
+SitecoreScan::mvcDeviceSimulatorFileDisclosure(url)  # Check if MVC Device Simulator allows file disclosure
+SitecoreScan::dashboardReporting(url)                # Check if Executive Insight Dashboard reporting is accessible
+SitecoreScan::telerikWebUi(url)                      # Check if Telerik Web UI is accessible
+SitecoreScan::getVersionFromLogin(url)               # Retrieve Sitecore version from Login page
 ```
-

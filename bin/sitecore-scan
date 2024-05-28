@@ -93,8 +93,7 @@ def scan(url, check: true, insecure: false, verbose: false)
 
   # Check if the URL is Sitecore
   if check
-    is_sitecore = SitecoreScan::detectSitecore(url)
-    unless is_sitecore
+    unless SitecoreScan::detectSitecore(url)
       puts '- Sitecore not found'
       exit(1)
     end
@@ -106,20 +105,19 @@ def scan(url, check: true, insecure: false, verbose: false)
   puts "+ Version: #{version}" if version
 
   # Check if Glimpse debugging is enabled
-  glimpse = SitecoreScan::glimpseDebugging(url)
-  puts "+ Glimpse debugging is enabled" if glimpse
+  puts "+ Glimpse debugging is enabled" if SitecoreScan::glimpseDebugging(url)
 
   # Check if SOAP API is accessible
-  soap_api = SitecoreScan::soapApi(url)
-  puts "+ SOAP API is available" if soap_api
+  puts "+ SOAP API is available" if SitecoreScan::soapApi(url)
+
+  # Check if MVC Device Simulator allows file disclosure
+  puts "+ MVC Device Simulator allows file disclosure" if SitecoreScan::mvcDeviceSimulatorFileDisclosure(url)
 
   # Check if Executive Insight Dashboard reporting is accessible
-  reporting = SitecoreScan::dashboardReporting(url)
-  puts "+ Executive Insight Dashboard reporting is available" if reporting
+  puts "+ Executive Insight Dashboard reporting is available" if SitecoreScan::dashboardReporting(url)
 
   # Check if Telerik Web UI is accessible
-  telerik = SitecoreScan::telerikWebUi(url)
-  puts "+ Telerik Web Ui is available" if telerik
+  puts "+ Telerik Web Ui is available" if SitecoreScan::telerikWebUi(url)
 
   puts "Scan finished at #{Time.now.getutc}"
   puts '-' * 60
